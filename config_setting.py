@@ -44,11 +44,13 @@ class setting_config_multitask:
     world_size = None
     rank = None
     amp = False
-    batch_size = 4  # single-encoder->9, multi-encoder->6    2ka single->6
-    epochs = 25
+    batch_size = 2  # single-encoder->9, multi-encoder->6    2ka single->6
+    epochs = 1
 
     # work_dir = base_path + 'results/' + network + '_' + datasets + '_' + datetime.now().strftime('%A_%d_%B_%Y_%Hh_%Mm_%Ss') + '/'
     work_dir = base_path + 'BDFormer/results/BDFormer_isic17'
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
     print_interval = 100
     val_interval = 5

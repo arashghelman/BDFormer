@@ -26,11 +26,11 @@ def train_one_epoch_multi(
         optimizer.zero_grad()
 
         target_img, target_seg, target_contour, target_class = data
-        target_img = target_img.float().cuda(non_blocking=True)
-        target_seg = target_seg.float().cuda(non_blocking=True)
-        target_contour = target_contour.float().cuda(non_blocking=True)
+        target_img = target_img.float().to(config.device, non_blocking=True)
+        target_seg = target_seg.float().to(config.device, non_blocking=True)
+        target_contour = target_contour.float().to(config.device, non_blocking=True)
         target_contour = target_contour.squeeze(dim=1)
-        target_class = target_class.long().cuda(non_blocking=True)
+        target_class = target_class.long().to(config.device, non_blocking=True)
 
         pred_seg, pred_contour, pred_class = model(target_img)
         loss = Caculate_multi_task_loss(
@@ -41,7 +41,8 @@ def train_one_epoch_multi(
             target_contour,
             target_class,
             class_weights,
-            alpha)
+            alpha,
+            config.device)
         loss.backward()
         optimizer.step()
 
@@ -55,13 +56,7 @@ def train_one_epoch_multi(
 
     scheduler.step()
 
-def val_one_epoch_multi(
-        data_loader,
-        class_weights,
-        model,
-        epoch,
-        logger,
-        config):
+def val_one_epoch_multi(data_loader, class_weights, model, epoch, logger, config):
     pred_masks = []
     target_masks = []
     pred_classes = []
@@ -75,11 +70,11 @@ def val_one_epoch_multi(
     with torch.no_grad():
         for data in tqdm(data_loader, ncols=70):
             target_img, target_seg, target_contour, target_class = data
-            target_img = target_img.float().cuda(non_blocking=True)
-            target_seg = target_seg.float().cuda(non_blocking=True)
-            target_contour = target_contour.float().cuda(non_blocking=True)
+            target_img = target_img.float().to(config.device, non_blocking=True)
+            target_seg = target_seg.float().to(config.device, non_blocking=True)
+            target_contour = target_contour.float().to(config.device, non_blocking=True)
             target_contour = target_contour.squeeze(dim=1)
-            target_class = target_class.long().cuda(non_blocking=True)
+            target_class = target_class.long().to(config.device, non_blocking=True)
 
             pred_seg, pred_contour, pred_class = model(target_img)
 
@@ -91,7 +86,8 @@ def val_one_epoch_multi(
                 target_contour,
                 target_class,
                 class_weights,
-                alpha)
+                alpha,
+                config.device)
             loss_list.append(loss.item())
 
             target_masks.append(target_seg.squeeze(1).cpu().detach().numpy())
@@ -122,13 +118,7 @@ def val_one_epoch_multi(
 
     return np.mean(loss_list)
 
-def test_one_epoch_multi(
-        data_loader,
-        model,
-        criterion,
-        logger,
-        config,
-        test_data_name=None):
+def test_one_epoch_multi(data_loader, model, criterion, logger, config, test_data_name=None):
     pred_masks = []
     target_masks = []
     target_classes = []
@@ -138,11 +128,11 @@ def test_one_epoch_multi(
     # switch to evaluate mode
     model.eval()
 
-    for i, data in enumerate(tqdm(data_loader, ncols=70)):
+    for _, data in enumerate(tqdm(data_loader, ncols=70)):
         target_img, target_seg, target_contour, target_class = data
-        target_img = target_img.float().cuda(non_blocking=True)
-        target_seg = target_seg.float().cuda(non_blocking=True)
-        target_contour = target_contour.float().cuda(non_blocking=True)
+        target_img = target_img.float().to(config.device, non_blocking=True)
+        target_seg = target_seg.float().to(config.device, non_blocking=True)
+        target_contour = target_contour.float().to(config.device, non_blocking=True)
 
         with torch.no_grad():
             pred_seg, pred_contour, pred_class = model(target_img)

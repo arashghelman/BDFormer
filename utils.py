@@ -15,19 +15,21 @@ from torch.nn.modules.loss import CrossEntropyLoss
 from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.utils.class_weight import compute_class_weight
 
-def set_seed(seed):
-    # for hash
+def set_seed(seed, device):
     os.environ['PYTHONHASHSEED'] = str(seed)
-    # for python and numpy
     random.seed(seed)
     np.random.seed(seed)
-    # for cpu gpu
+
     torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    # for cudnn
-    cudnn.benchmark = False
-    cudnn.deterministic = True
+
+    if device.type == 'cuda':
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        cudnn.deterministic = True
+        cudnn.benchmark = False
+
+    if device.type == 'mps':
+        torch.mps.manual_seed(seed)
 
 
 def get_logger(name, log_dir):
@@ -552,9 +554,9 @@ def Caculate_multi_task_loss(
         target_contour,
         target_class,
         class_weights,
-        alpha
-    ):
-    ce_loss_contour = CrossEntropyLoss(weight=torch.tensor([1.0, 55.0]).cuda())
+        alpha,
+        device):
+    ce_loss_contour = CrossEntropyLoss(weight=torch.tensor([1.0, 55.0], device=device))
     dice_loss_contour = DiceLoss_Contour(n_classes=2)
     bce_dice_loss = BceDiceLoss(wb=0.5, wd=0.5)
     ce_loss_class = CrossEntropyLoss(weight=class_weights)
@@ -569,9 +571,7 @@ def Caculate_multi_task_loss(
     loss_contour_mse = F.mse_loss(pred_contour_soft[:, 1, :, :], target_contour.to(torch.float32))
     loss_contour = 0.4 * loss_contour_ce + 0.2 * loss_contour_dice + 0.4 * loss_contour_mse
 
-    loss_consistency = alpha * Calculate_consistency_loss(pred_seg, pred_contour)
-
-    print(f'loss seg: {loss_seg} - loss contour: {loss_contour} - loss class: {loss_class}')
+    loss_consistency = alpha * Calculate_consistency_loss(pred_seg, pred_contour, device)
 
     loss_total = loss_class + loss_seg + loss_contour + loss_consistency
 
@@ -588,7 +588,7 @@ def OnehotEncoder(input_tensor):
     return output_tensor.float()
 
 
-def Calculate_consistency_loss(pred_seg, pred_contour):  # Batch_size >= 2
+def Calculate_consistency_loss(pred_seg, pred_contour, device):  # Batch_size >= 2
     ce_loss = CrossEntropyLoss()
     dice_loss = DiceLoss_Contour(n_classes=2)
     seg_img = torch.argmax(torch.softmax(pred_seg, dim=1), dim=1).squeeze(0)
@@ -616,8 +616,8 @@ def Calculate_consistency_loss(pred_seg, pred_contour):  # Batch_size >= 2
 
         temp1 = torch.tensor(temp1, dtype=torch.float32)
         temp1 = temp1.reshape([1, 256, 256])
-        temp1 = OnehotEncoder(temp1).cuda()
-        temp2 = torch.tensor(temp2).cuda()
+        temp1 = OnehotEncoder(temp1).to(device)
+        temp2 = torch.tensor(temp2).to(device)
         temp2 = temp2.reshape([1, 256, 256])
         loss_consistency1_ce = ce_loss(temp1, temp2.long())
         loss_consistency1_dice = dice_loss(temp1, temp2[:], softmax=True)
@@ -631,14 +631,14 @@ def Calculate_consistency_loss(pred_seg, pred_contour):  # Batch_size >= 2
         kernel = np.ones((5, 5), np.uint8)
         temp3 = cv2.dilate(temp3, kernel)
         # end dilation
-        temp3 = torch.tensor(temp3).cuda()
+        temp3 = torch.tensor(temp3).to(device)
         temp3 = temp3.reshape([1, 256, 256])
         # temp4 = contour_img.cpu().detach().numpy().astype('uint8')
         temp4 = contour_img[i]
         temp4 = temp4.reshape([1, 256, 256])
         temp4 = OnehotEncoder(temp4)
 
-        loss_contour_weight = torch.tensor([1.0, 55.0]).cuda()
+        loss_contour_weight = torch.tensor([1.0, 55.0]).to(device)
         loss_consistency2_CE = F.cross_entropy(temp4, temp3[:].long(), weight=loss_contour_weight)
         output_contour_soft = F.softmax(temp4, dim=1)
         loss_consistency2_dice = dice_loss(temp4, temp3[:], softmax=True)
@@ -723,10 +723,11 @@ def save_layer_features(model, dataloader, target_layer, save_path):
 
     print(f"Saved features to {save_path}")
 
-def calculate_class_weights(labels):
+def calculate_class_weights(labels, device):
+    from config_setting import setting_config_multitask as config
     classes = np.unique(labels)
     class_weights = compute_class_weight('balanced', classes=classes, y=labels)
-    class_weights = torch.tensor(class_weights, dtype=torch.float32).cuda()
+    class_weights = torch.tensor(class_weights, dtype=torch.float32, device=device)
 
     return class_weights
 
