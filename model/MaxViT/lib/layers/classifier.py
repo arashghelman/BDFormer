@@ -38,17 +38,18 @@ def create_classifier(num_features, num_classes, pool_type='avg', use_conv=False
 class ClassifierHead(nn.Module):
     """Classifier head w/ configurable global pooling and dropout."""
 
-    def __init__(self, in_chs, num_classes, pool_type='avg', drop_rate=0., use_conv=False):
+    def __init__(self, in_chs, num_classes, pool_type='avg', dropout=0., use_conv=False):
         super(ClassifierHead, self).__init__()
-        self.drop_rate = drop_rate
+        self.dropout = nn.Dropout(dropout)
         # self.global_pool, num_pooled_features = _create_pool(in_chs, num_classes, pool_type, use_conv=use_conv)
         self.fc = nn.Linear(in_chs, num_classes, bias=True)
         self.flatten = nn.Flatten(1) if use_conv and pool_type else nn.Identity()
 
     def forward(self, x, pre_logits: bool = False):
         # x = self.global_pool(x)
-        if self.drop_rate:
-            x = F.dropout(x, p=float(self.drop_rate), training=self.training)
+        # if self.drop_rate:
+        #     x = F.dropout(x, p=float(self.drop_rate), training=self.training)
+        x = self.dropout(x)
         if pre_logits:
             return x.flatten(1)
         else:

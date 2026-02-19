@@ -854,9 +854,9 @@ class MT_MaxViT(nn.Module):
         )
         self.multitask_distillation = MultitaskDistillation()
 
-        self.fusion_block = FusionBlock(embed_dim=MaxxVitCfg.embed_dim[-1])
+        self.fusion_block = FusionBlock(embed_dim=MaxxVitCfg.embed_dim[-1], norm_layer=norm_layer)
 
-        self.classifier = ClassifierHead(in_chs=MaxxVitCfg.embed_dim[-1], num_classes=3, pool_type='')
+        self.classifier = ClassifierHead(in_chs=MaxxVitCfg.embed_dim[-1], num_classes=3, pool_type='', dropout=0.5)
 
         named_apply(partial(self._init_weights, scheme='vit_eff'), self)
 

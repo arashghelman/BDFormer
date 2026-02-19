@@ -2,34 +2,31 @@ import torch
 import torch.nn as nn
 
 class FusionBlock(nn.Module):
-    def __init__(self, embed_dim, input_dim=960, num_heads=1):
+    def __init__(self, embed_dim, input_dim=960, num_heads=1, dropout=0.1, norm_layer=nn.LayerNorm):
         super(FusionBlock, self).__init__()
 
-        self.global_feature_norm = nn.Sequential(
-            nn.BatchNorm1d(num_features=embed_dim),
-            nn.ReLU(inplace=True)
-        )
+        self.norm_query = norm_layer(embed_dim)
+        self.norm_kv = norm_layer(embed_dim)
 
-        self.decoder_feature_downsample = nn.Sequential(
+        self.decoder_align = nn.Sequential(
             nn.Conv2d(in_channels=input_dim, out_channels=embed_dim, kernel_size=1, bias=False),
-            nn.AdaptiveMaxPool2d(output_size=8),
-            nn.BatchNorm2d(num_features=embed_dim),
-            nn.ReLU(inplace=True)
+            nn.AdaptiveAvgPool2d(output_size=8)
         )
 
         self.multihead_attn = nn.MultiheadAttention(embed_dim, num_heads, batch_first=True)
 
+        self.dropout = nn.Dropout(dropout)
+
     def forward(self, global_feature, decoder_feature):
-        global_feature = global_feature.permute(0, 2, 1)
-        query = self.global_feature_norm(global_feature)
-        query = query.permute(0, 2, 1)
+        query = self.norm_query(global_feature)
 
-        decoder_feature_down = self.decoder_feature_downsample(decoder_feature)
-        key_value = decoder_feature_down.flatten(2).permute(0, 2, 1)
+        x_dec = self.decoder_align(decoder_feature)
+        kv = x_dec.flatten(2).permute(0, 2, 1)
+        kv = self.norm_kv(kv)
 
-        attn_output, _ = self.multihead_attn(query, key=key_value, value=key_value, need_weights=False)
+        attn_output, _ = self.multihead_attn(query, key=kv, value=kv, need_weights=False)
         
-        return attn_output
+        return global_feature + self.dropout(attn_output)
 
 
 import torch

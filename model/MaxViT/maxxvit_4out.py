@@ -1697,7 +1697,7 @@ class MaxxVit(nn.Module):
         self.num_classes = num_classes
         if global_pool is None:
             global_pool = self.head.global_pool.pool_type
-        self.head = ClassifierHead(self.num_features, self.num_classes, pool_type=self.global_pool, drop_rate=self.drop_rate)
+        self.head = ClassifierHead(self.num_features, self.num_classes, pool_type=self.global_pool, dropout=self.drop_rate)
 
     def forward_features(self, x):
         x = self.stem(x)
